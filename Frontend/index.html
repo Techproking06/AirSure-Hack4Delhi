@@ -1,0 +1,1216 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AirSure | Delhi Air Quality Civic Platform</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Montserrat:wght@600;700&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+  <style>
+    :root {
+      --bg-start: #0B1424;
+      --bg-end: #0F1D38;
+      --mint-start: #00C6A7;
+      --mint-end: #3FF7DF;
+      --text-main: #F8F9FA;
+      --text-body: #CBD5E1;
+      --text-muted: #94A3B8;
+    }
+    * { font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background: radial-gradient(circle at 20% 20%, rgba(0, 198, 167, 0.12), transparent 40%),
+                  radial-gradient(circle at 80% 0%, rgba(63, 247, 223, 0.08), transparent 35%),
+                  linear-gradient(140deg, var(--bg-start), var(--bg-end));
+      color: var(--text-body);
+    }
+    .glass {
+      background: rgba(15, 29, 56, 0.7);
+      border: 1px solid rgba(63, 247, 223, 0.18);
+      box-shadow: 0 10px 40px rgba(0,0,0,0.35);
+      backdrop-filter: blur(16px);
+      border-radius: 14px;
+    }
+    .glass-strong { border: 1px solid rgba(63, 247, 223, 0.28); }
+    .gradient-btn {
+      background: linear-gradient(90deg, var(--mint-start), var(--mint-end));
+      color: #0B1424;
+      font-weight: 700;
+      box-shadow: 0 10px 30px rgba(0, 198, 167, 0.35);
+    }
+    .nav-blur { backdrop-filter: blur(12px); }
+    .bubbles {
+      position: absolute;
+      inset: 0;
+      overflow: hidden;
+      z-index: 0;
+    }
+    .bubble {
+      position: absolute;
+      background: rgba(63, 247, 223, 0.18);
+      border-radius: 9999px;
+      filter: blur(0px);
+      animation: float 18s infinite ease-in-out;
+    }
+    @keyframes float {
+      0% { transform: translateY(0) translateX(0); opacity: 0.6; }
+      50% { transform: translateY(-20px) translateX(10px); opacity: 0.9; }
+      100% { transform: translateY(10px) translateX(-10px); opacity: 0.5; }
+    }
+    .input-field { background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); border-radius: 10px; color: var(--text-main); }
+    .input-field:focus { outline: 2px solid rgba(63, 247, 223, 0.6); }
+    .badge-pill { border-radius: 9999px; padding: 4px 10px; font-size: 12px; }
+    .chip { padding: 6px 12px; border-radius: 12px; cursor: pointer; border: 1px solid rgba(255,255,255,0.08); }
+    .chip-active { border-color: rgba(63, 247, 223, 0.6); color: var(--text-main); box-shadow: 0 0 0 1px rgba(63, 247, 223, 0.25); }
+    .scroll-area { scrollbar-width: thin; }
+    .scroll-area::-webkit-scrollbar { width: 6px; height: 6px; }
+    .scroll-area::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.12); border-radius: 9999px; }
+  </style>
+</head>
+<body>
+  <div id="app" class="min-h-screen"></div>
+
+  <script>
+    const NAV_ITEMS = [
+      { id: 'home', label: 'Home' },
+      { id: 'live-map', label: 'Live Map' },
+      { id: 'citizen-portal', label: 'Citizen Portal' },
+      { id: 'governance', label: 'Governance' },
+      { id: 'ai-intelligence', label: 'AI Intelligence' },
+      { id: 'actions', label: 'Actions' },
+      { id: 'policy-simulator', label: 'Policy Simulator' },
+      { id: 'about', label: 'About' }
+    ];
+
+    const ROLE_VISIBILITY = {
+      'Citizen': ['home','live-map','citizen-portal','ai-intelligence','about'],
+      'Ward Officer': ['home','live-map','citizen-portal','governance','ai-intelligence','about'],
+      'Admin / MCD': ['home','live-map','citizen-portal','governance','ai-intelligence','actions','policy-simulator','about']
+    };
+
+    const ROUTE_TITLES = {
+      'home': 'Home',
+      'live-map': 'Live Map',
+      'citizen-portal': 'Citizen Portal',
+      'governance': 'Governance',
+      'ai-intelligence': 'AI Intelligence',
+      'actions': 'Actions & Notices',
+      'policy-simulator': 'Policy Simulator',
+      'about': 'About',
+      'privacy': 'Privacy Policy',
+      'terms': 'Terms of Use',
+      'auth': 'Auth'
+    };
+
+    const state = {
+      authenticated: false,
+      role: null,
+      user: null,
+      route: 'auth',
+      authTab: 'login',
+      showForgot: false,
+      mobileMenu: false,
+      authErrors: {},
+      complaints: JSON.parse(localStorage.getItem('airsure_complaints') || '[]')
+    };
+
+    function saveAuth() {
+      if (state.authenticated) {
+        localStorage.setItem('airsure_auth', JSON.stringify({ role: state.role, user: state.user }));
+      } else {
+        localStorage.removeItem('airsure_auth');
+      }
+    }
+
+    function loadAuth() {
+      const stored = localStorage.getItem('airsure_auth');
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        state.authenticated = true;
+        state.role = parsed.role;
+        state.user = parsed.user;
+        state.route = 'home';
+      }
+    }
+
+    function setRoute(route) {
+      if (!state.authenticated && route !== 'auth' && route !== 'privacy' && route !== 'terms') {
+        state.route = 'auth';
+      } else {
+        state.route = route;
+      }
+      state.mobileMenu = false;
+      renderApp();
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
+    function allowedNavItems() {
+      if (!state.role) return [];
+      return NAV_ITEMS.filter(item => ROLE_VISIBILITY[state.role].includes(item.id));
+    }
+
+    function navVisible(itemId) {
+      if (!state.role) return false;
+      return ROLE_VISIBILITY[state.role].includes(itemId);
+    }
+
+    function handleLogin(formData) {
+      const errors = {};
+      if (!formData.email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) errors.email = 'Enter a valid email';
+      if (!formData.password || formData.password.length < 6) errors.password = 'Min 6 characters';
+      if (!formData.role) errors.role = 'Select a role';
+      state.authErrors = errors;
+      if (Object.keys(errors).length) { renderApp(); return; }
+      state.authenticated = true;
+      state.role = formData.role;
+      state.user = { email: formData.email, name: 'User' };
+      saveAuth();
+      const firstVisible = allowedNavItems()[0]?.id || 'home';
+      setRoute(firstVisible);
+    }
+
+    function handleSignup(formData) {
+      const errors = {};
+      if (!formData.name || formData.name.length < 2) errors.name = 'Enter your name';
+      if (!formData.email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) errors.email = 'Enter a valid email';
+      if (!formData.password || formData.password.length < 6) errors.password = 'Min 6 characters';
+      if (!formData.role) errors.role = 'Select a role';
+      state.authErrors = errors;
+      if (Object.keys(errors).length) { renderApp(); return; }
+      state.authenticated = true;
+      state.role = formData.role;
+      state.user = { email: formData.email, name: formData.name };
+      saveAuth();
+      const firstVisible = allowedNavItems()[0]?.id || 'home';
+      setRoute(firstVisible);
+    }
+
+    function logout() {
+      state.authenticated = false;
+      state.role = null;
+      state.user = null;
+      state.route = 'auth';
+      state.mobileMenu = false;
+      saveAuth();
+      renderApp();
+    }
+
+    function addComplaint(data) {
+      const newList = [{ ...data, id: crypto.randomUUID(), createdAt: new Date().toISOString(), status: 'Submitted' }, ...state.complaints];
+      state.complaints = newList;
+      localStorage.setItem('airsure_complaints', JSON.stringify(newList));
+    }
+
+    function renderNavbar() {
+      if (!state.authenticated) return '';
+      const items = allowedNavItems();
+      const active = state.route;
+      const badgeColor = state.role === 'Citizen' ? 'bg-emerald-500/20 text-emerald-200' : state.role === 'Ward Officer' ? 'bg-blue-500/20 text-blue-200' : 'bg-teal-500/20 text-teal-100';
+      return `
+        <header class="fixed top-0 inset-x-0 z-40">
+          <div class="mx-auto max-w-7xl px-4">
+            <div class="mt-3 glass nav-blur flex items-center justify-between px-4 py-3 border border-white/5 shadow-lg" id="navbar">
+              <div class="flex items-center gap-3">
+                <div class="h-10 w-10 rounded-full bg-gradient-to-br from-emerald-400 to-cyan-500 flex items-center justify-center text-slate-900 font-bold">A</div>
+                <div>
+                  <p class="text-sm text-slate-300 font-semibold">AirSure</p>
+                  <p class="text-xs text-slate-500">Delhi air quality civic platform</p>
+                </div>
+              </div>
+              <nav class="hidden lg:flex items-center gap-3">
+                ${items.map(item => `
+                  <button data-route="${item.id}" class="px-3 py-2 rounded-xl text-sm ${active===item.id ? 'bg-white/10 text-white shadow-inner border border-emerald-300/30' : 'text-slate-300 hover:text-white'}">${item.label}</button>
+                `).join('')}
+              </nav>
+              <div class="flex items-center gap-3">
+                <span class="text-xs px-3 py-1 ${badgeColor} rounded-full border border-white/10">${state.role}</span>
+                <div class="relative">
+                  <button id="userMenuBtn" class="h-10 w-10 rounded-full bg-white/10 border border-white/10 flex items-center justify-center text-white">${state.user?.name?.[0] || 'U'}</button>
+                  <div id="userMenu" class="hidden absolute right-0 mt-2 w-40 glass text-sm overflow-hidden">
+                    <button data-profile class="w-full text-left px-4 py-2 hover:bg-white/5 text-slate-200">Profile</button>
+                    <button data-logout class="w-full text-left px-4 py-2 hover:bg-white/5 text-rose-300">Logout</button>
+                  </div>
+                </div>
+                <button id="hamburger" class="lg:hidden h-10 w-10 rounded-full bg-white/10 border border-white/10 flex items-center justify-center text-white">
+                  <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 12h16M4 18h16" /></svg>
+                </button>
+              </div>
+            </div>
+          </div>
+          <div id="mobileMenu" class="${state.mobileMenu ? 'fixed' : 'hidden'} inset-0 z-50 bg-slate-950/80 backdrop-blur-xl lg:hidden">
+            <div class="p-6 flex flex-col gap-4 h-full">
+              <div class="flex items-center justify-between mb-4">
+                <div class="flex items-center gap-3">
+                  <div class="h-10 w-10 rounded-full bg-gradient-to-br from-emerald-400 to-cyan-500 flex items-center justify-center text-slate-900 font-bold">A</div>
+                  <div>
+                    <p class="text-slate-100 font-semibold">AirSure</p>
+                    <p class="text-xs text-slate-500">Delhi AQ platform</p>
+                  </div>
+                </div>
+                <button id="closeMobile" class="h-10 w-10 rounded-full bg-white/10 border border-white/10 flex items-center justify-center text-white">✕</button>
+              </div>
+              <div class="flex items-center gap-2 text-xs">
+                <span class="px-3 py-1 ${badgeColor} rounded-full border border-white/10">${state.role}</span>
+                <span class="px-3 py-1 bg-white/5 rounded-full text-slate-200">${state.user?.email || ''}</span>
+              </div>
+              <div class="flex-1 flex flex-col gap-2 overflow-y-auto">
+                ${items.map(item => `
+                  <button data-route="${item.id}" class="w-full text-left px-4 py-3 rounded-xl glass border border-white/5 ${active===item.id ? 'ring-1 ring-emerald-300/40 text-white' : 'text-slate-200'}">${item.label}</button>
+                `).join('')}
+              </div>
+              <div class="mt-auto flex flex-col gap-2">
+                <button data-profile class="w-full glass px-4 py-3 rounded-xl text-left text-slate-200">Profile</button>
+                <button data-logout class="w-full glass px-4 py-3 rounded-xl text-left text-rose-300">Logout</button>
+              </div>
+            </div>
+          </div>
+        </header>
+      `;
+    }
+
+    function renderFooter() {
+      if (!state.authenticated) return '';
+      return `
+        <footer class="mt-16 border-t border-white/5 bg-slate-950/70 backdrop-blur-xl text-sm">
+          <div class="max-w-7xl mx-auto px-4 py-10 grid grid-cols-1 md:grid-cols-3 gap-8">
+            <div>
+              <div class="flex items-center gap-3 mb-3">
+                <div class="h-10 w-10 rounded-full bg-gradient-to-br from-emerald-400 to-cyan-500 flex items-center justify-center text-slate-900 font-bold">A</div>
+                <div>
+                  <p class="text-slate-100 font-semibold">AirSure</p>
+                  <p class="text-xs text-slate-500">Civic-tech transparency for urban air quality.</p>
+                </div>
+              </div>
+              <p class="text-slate-400 text-sm">Built for Delhi: citizens, ward officers, and MCD leadership with authentic public data.</p>
+            </div>
+            <div class="grid grid-cols-2 gap-3 text-slate-300">
+              ${NAV_ITEMS.map(item => navVisible(item.id) ? `<a data-route="${item.id}" class="hover:text-white cursor-pointer">${item.label}</a>` : '').join('')}
+              <a data-route="privacy" class="hover:text-white cursor-pointer">Privacy Policy</a>
+              <a data-route="terms" class="hover:text-white cursor-pointer">Terms of Use</a>
+            </div>
+            <div class="text-slate-400 text-sm space-y-2">
+              <p>Data sources: OpenAQ (CPCB), NASA FIRMS, WeatherAPI.</p>
+              <p>Support: support@airsure.delhi.gov</p>
+              <p class="text-slate-500">© ${new Date().getFullYear()} AirSure. Public-good civic technology.</p>
+            </div>
+          </div>
+        </footer>
+      `;
+    }
+
+    function authHero() {
+      return `
+        <div class="relative overflow-hidden glass-strong h-full p-8 text-white">
+          <div class="bubbles" aria-hidden="true">
+            ${Array.from({length:18}).map((_,i)=>{
+              const size = Math.random()*40+10;
+              const top = Math.random()*100;
+              const left = Math.random()*100;
+              const delay = Math.random()*6;
+              return `<span class="bubble" style="width:${size}px;height:${size}px;top:${top}%;left:${left}%;animation-delay:${delay}s"></span>`;
+            }).join('')}
+          </div>
+          <div class="relative z-10 flex flex-col h-full justify-between">
+            <div>
+              <div class="flex items-center gap-3 mb-8">
+                <div class="h-12 w-12 rounded-full bg-gradient-to-br from-emerald-400 to-cyan-500 flex items-center justify-center text-slate-900 font-bold">A</div>
+                <div>
+                  <p class="text-xl font-semibold">AirSure</p>
+                  <p class="text-sm text-emerald-100">Delhi air quality governance & engagement</p>
+                </div>
+              </div>
+              <h1 class="text-4xl md:text-5xl font-bold leading-tight">Real-time Delhi's Air Quality
+                <span class="block text-emerald-300">Verifiable by law Transparent by design</span></h1>
+              <p class="mt-4 text-slate-200 max-w-2xl">Live AQI from CPCB-linked stations, NASA FIRMS fire intelligence, and WeatherAPI wind—no simulations or fabricated data. Built for citizens, ward officers, and MCD leadership.</p>
+              <div class="mt-5 inline-flex items-center gap-3 px-4 py-2 rounded-full bg-white/10 text-sm text-emerald-100 border border-emerald-300/30">Live data • No simulations • Fully transparent</div>
+            </div>
+            <div class="mt-8 grid grid-cols-1 sm:grid-cols-3 gap-4">
+              ${[
+                {title:'Citizens', desc:'Report smoke, Track action, See ward-level air quality live.'},
+                {title:'Governance', desc:'Ward KPIs and SLA visibility.'},
+                {title:'Explainable AI', desc:'Transparent, audit-ready logic.'}
+              ].map(card => `
+                <div class="glass border border-white/5 p-4 rounded-xl">
+                  <p class="text-lg font-semibold text-white">${card.title}</p>
+                  <p class="text-sm text-slate-200">${card.desc}</p>
+                </div>
+              `).join('')}
+            </div>
+            <div class="pt-6 text-xs text-slate-300 border-t border-white/10">Sources: OpenAQ (CPCB), NASA FIRMS (MODIS/VIIRS), WeatherAPI (wind).</div>
+          </div>
+        </div>
+      `;
+    }
+
+    function authCard() {
+      return `
+        <div class="glass p-8 md:p-10 border border-white/10 shadow-2xl relative">
+          <div class="flex items-center gap-4 border-b border-white/10 pb-4 mb-4">
+            <button data-auth-tab="login" class="pb-2 ${state.authTab==='login'?'border-b-2 border-emerald-300 text-white':'text-slate-300'}">Login</button>
+            <button data-auth-tab="signup" class="pb-2 ${state.authTab==='signup'?'border-b-2 border-emerald-300 text-white':'text-slate-300'}">Sign up</button>
+          </div>
+          <p class="text-sm text-slate-400 mb-4">Secure access for citizens, ward officers, and MCD admins.</p>
+          ${state.authTab==='login' ? loginForm() : signupForm()}
+        </div>
+      `;
+    }
+
+    function loginForm() {
+      return `
+        <div class="space-y-4">
+          <button class="w-full flex items-center justify-center gap-3 border border-white/10 rounded-xl px-4 py-3 bg-white/5 text-white"><img alt="google" class="h-5" src="https://www.svgrepo.com/show/475656/google-color.svg"/>Continue with Google</button>
+          <div class="flex items-center gap-3 text-xs text-slate-500">
+            <div class="flex-1 h-px bg-white/10"></div><span>or login with email</span><div class="flex-1 h-px bg-white/10"></div>
+          </div>
+          <div class="space-y-3">
+            <div>
+              <label class="text-sm text-slate-300">Email</label>
+              <input id="loginEmail" type="email" class="input-field w-full px-3 py-3 mt-1" placeholder="you@example.com" />
+              ${state.authErrors.email?`<p class="text-xs text-rose-300 mt-1">${state.authErrors.email}</p>`:''}
+            </div>
+            <div>
+              <label class="text-sm text-slate-300">Password</label>
+              <div class="relative mt-1">
+                <input id="loginPassword" type="password" class="input-field w-full px-3 py-3" placeholder="••••••" />
+                <button type="button" data-toggle-pass="loginPassword" class="absolute right-3 top-2.5 text-xs text-emerald-200">Show</button>
+              </div>
+              ${state.authErrors.password?`<p class="text-xs text-rose-300 mt-1">${state.authErrors.password}</p>`:''}
+            </div>
+            <div>
+              <label class="text-sm text-slate-300">Role</label>
+              <select id="loginRole" class="input-field w-full px-3 py-3 mt-1">
+                <option value="">Select role</option>
+                <option>Citizen</option>
+                <option>Ward Officer</option>
+                <option>Admin / MCD</option>
+              </select>
+              ${state.authErrors.role?`<p class="text-xs text-rose-300 mt-1">${state.authErrors.role}</p>`:''}
+            </div>
+            <button id="loginSubmit" class="w-full gradient-btn px-4 py-3 rounded-xl">Continue</button>
+            <div class="flex items-center justify-between text-sm text-slate-400">
+              <button id="forgotBtn" class="text-emerald-200 underline">Forgot password?</button>
+              <div>By continuing, you agree to our <a data-route="terms" class="text-emerald-200 underline">Terms of Use</a> and <a data-route="privacy" class="text-emerald-200 underline">Privacy Policy</a>.</div>
+            </div>
+            <div class="glass border border-emerald-300/20 px-4 py-3 rounded-lg text-sm text-emerald-100">
+              <p class="font-semibold">Data integrity pledge</p>
+              <p class="text-emerald-50/80">All data is fetched from official public APIs; no synthetic or simulated values are displayed.</p>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    function signupForm() {
+      return `
+        <div class="space-y-4">
+          <button class="w-full flex items-center justify-center gap-3 border border-white/10 rounded-xl px-4 py-3 bg-white/5 text-white"><img alt="google" class="h-5" src="https://www.svgrepo.com/show/475656/google-color.svg"/>Sign up with Google</button>
+          <div class="flex items-center gap-3 text-xs text-slate-500">
+            <div class="flex-1 h-px bg-white/10"></div><span>or create an account</span><div class="flex-1 h-px bg-white/10"></div>
+          </div>
+          <div class="space-y-3">
+            <div>
+              <label class="text-sm text-slate-300">Name</label>
+              <input id="signupName" class="input-field w-full px-3 py-3 mt-1" placeholder="Your name" />
+              ${state.authErrors.name?`<p class="text-xs text-rose-300 mt-1">${state.authErrors.name}</p>`:''}
+            </div>
+            <div>
+              <label class="text-sm text-slate-300">Email</label>
+              <input id="signupEmail" type="email" class="input-field w-full px-3 py-3 mt-1" placeholder="you@example.com" />
+              ${state.authErrors.email?`<p class="text-xs text-rose-300 mt-1">${state.authErrors.email}</p>`:''}
+            </div>
+            <div>
+              <label class="text-sm text-slate-300">Password</label>
+              <div class="relative mt-1">
+                <input id="signupPassword" type="password" class="input-field w-full px-3 py-3" placeholder="••••••" />
+                <button type="button" data-toggle-pass="signupPassword" class="absolute right-3 top-2.5 text-xs text-emerald-200">Show</button>
+              </div>
+              ${state.authErrors.password?`<p class="text-xs text-rose-300 mt-1">${state.authErrors.password}</p>`:''}
+            </div>
+            <div>
+              <label class="text-sm text-slate-300">Role</label>
+              <select id="signupRole" class="input-field w-full px-3 py-3 mt-1">
+                <option value="">Select role</option>
+                <option>Citizen</option>
+                <option>Ward Officer</option>
+                <option>Admin / MCD</option>
+              </select>
+              ${state.authErrors.role?`<p class="text-xs text-rose-300 mt-1">${state.authErrors.role}</p>`:''}
+            </div>
+            <button id="signupSubmit" class="w-full gradient-btn px-4 py-3 rounded-xl">Create account</button>
+            <div class="text-sm text-slate-400">By creating an account, you agree to our <a data-route="terms" class="text-emerald-200 underline">Terms of Use</a> and <a data-route="privacy" class="text-emerald-200 underline">Privacy Policy</a>.</div>
+            <button data-auth-tab="login" class="text-xs text-emerald-200 underline">Already have an account? Login</button>
+          </div>
+        </div>
+      `;
+    }
+
+    function forgotModal() {
+      if (!state.showForgot) return '';
+      return `
+        <div class="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 backdrop-blur-sm">
+          <div class="glass w-full max-w-md p-6 relative">
+            <button id="closeForgot" class="absolute top-3 right-3 text-slate-400">✕</button>
+            <h3 class="text-xl text-white font-semibold">Reset password</h3>
+            <p class="text-sm text-slate-400 mt-2">Enter your email to receive a reset link.</p>
+            <input id="forgotEmail" type="email" class="input-field w-full px-3 py-3 mt-4" placeholder="you@example.com" />
+            <button class="w-full gradient-btn px-4 py-3 rounded-xl mt-4">Send reset link</button>
+            <button id="backToLogin" class="text-sm text-emerald-200 underline mt-3">Back to login</button>
+          </div>
+        </div>
+      `;
+    }
+
+    function renderAuthPage() {
+      return `
+        <main class="min-h-screen grid grid-cols-1 lg:grid-cols-2">
+          <div class="relative p-6 lg:p-10">${authHero()}</div>
+          <div class="relative flex items-center justify-center p-6 lg:p-12">
+            <div class="max-w-xl w-full">${authCard()}</div>
+          </div>
+          ${forgotModal()}
+        </main>
+      `;
+    }
+
+    function homeContent() {
+      const role = state.role;
+      const heroCopy = {
+        'Citizen': {
+          h1: 'Breathe safer with accountable air intelligence',
+          sub: 'Check honest AQI, view parali smoke impacts, and file actionable complaints.',
+          cta: 'View Live Map',
+          target: 'live-map'
+        },
+        'Ward Officer': {
+          h1: 'Ward-level air quality and service accountability',
+          sub: 'Track ward AQI, complaints, and SLA adherence with transparent data.',
+          cta: 'Open Governance',
+          target: 'governance'
+        },
+        'Admin / MCD': {
+          h1: 'Citywide air quality with enforcement-ready transparency',
+          sub: 'Monitor AQI, parali plumes, and complaints across wards to guide actions.',
+          cta: 'Open Actions',
+          target: 'actions'
+        }
+      }[role];
+
+      const quickCards = {
+        'Citizen': [
+          { title:'View Live Map', desc:'Real AQI & ward overlays', route:'live-map' },
+          { title:'Submit a complaint', desc:'Smoke, dust, garbage', route:'citizen-portal' },
+          { title:'Understand AI', desc:'Explainable insights', route:'ai-intelligence' },
+          { title:'About our data', desc:'Sources & transparency', route:'about' },
+        ],
+        'Ward Officer': [
+          { title:'Ward map', desc:'Focus on your ward', route:'live-map' },
+          { title:'Ward complaints', desc:'View and triage', route:'citizen-portal' },
+          { title:'Governance metrics', desc:'SLA, response time', route:'governance' },
+          { title:'AI findings', desc:'Explainable signals', route:'ai-intelligence' },
+        ],
+        'Admin / MCD': [
+          { title:'City overview', desc:'District & ward AQI', route:'live-map' },
+          { title:'Governance KPIs', desc:'Citywide performance', route:'governance' },
+          { title:'Actions', desc:'Notices & penalties', route:'actions' },
+          { title:'Policy Simulator', desc:'What-if scenarios', route:'policy-simulator' },
+        ]
+      }[role];
+
+      return `
+        <section class="pt-28 pb-12">
+          <div class="max-w-7xl mx-auto px-4">
+            <div class="grid lg:grid-cols-2 gap-10 items-center">
+              <div>
+                <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/5 border border-white/10 text-emerald-100 text-xs mb-4">Role-aware • WCAG AA • Public data</div>
+                <h1 class="text-4xl lg:text-5xl font-bold text-white leading-tight">${heroCopy.h1}</h1>
+                <p class="mt-4 text-slate-300 text-lg">${heroCopy.sub}</p>
+                <div class="mt-6 flex flex-wrap items-center gap-4">
+                  <button data-route="${heroCopy.target}" class="gradient-btn px-5 py-3 rounded-xl">${heroCopy.cta}</button>
+                  <button data-route="about" class="px-4 py-3 rounded-xl border border-white/10 text-slate-200 hover:text-white">Learn more</button>
+                </div>
+              </div>
+              <div class="glass p-6 border border-white/10 shadow-xl">
+  <p class="text-sm text-emerald-200 mb-2">Live AQI snapshot</p>
+
+  <div class="grid grid-cols-2 gap-4">
+    <div class="glass p-4 border border-emerald-300/20 rounded-xl">
+      <p class="text-xs text-slate-400">City AQI (OpenAQ)</p>
+
+      <!-- JS will fill these -->
+      <p class="text-3xl text-white font-semibold home-aqi-value">—</p>
+      <p class="text-xs text-emerald-200 home-aqi-cat"></p>
+
+      <p class="text-xs text-slate-500">Live from backend (/api/aqi/aggregate).</p>
+    </div>
+
+    <div class="glass p-4 border border-emerald-300/20 rounded-xl">
+      <p class="text-xs text-slate-400">Weather (WeatherAPI)</p>
+
+      <!-- JS will fill these -->
+      <p class="text-3xl text-white font-semibold home-wind">—</p>
+      <p class="text-xs text-slate-300 home-temp">—</p>
+
+      <p class="text-xs text-slate-500">Live from backend (/api/weather).</p>
+    </div>
+  </div>
+
+  <div class="mt-4 text-xs text-slate-400">
+    Values update after login when the Home page renders.
+  </div>
+</div>
+
+            <div class="mt-10 grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              ${quickCards.map(card => `
+                <button data-route="${card.route}" class="glass w-full text-left p-4 hover:border-emerald-300/30 border border-white/5">
+                  <p class="text-white font-semibold">${card.title}</p>
+                  <p class="text-sm text-slate-300">${card.desc}</p>
+                </button>
+              `).join('')}
+            </div>
+
+            <div class="mt-10 glass p-4 border border-white/10 flex items-center justify-between">
+              <p class="text-sm text-slate-300">Data sources: OpenAQ (CPCB), NASA FIRMS (MODIS + VIIRS), WeatherAPI. Last update: pending live fetch.</p>
+              <button data-route="about" class="text-emerald-200 text-sm underline">Transparency</button>
+            </div>
+          </div>
+        </section>
+      `;
+    }
+
+    function liveMapContent() {
+      const roleLabel = state.role === 'Citizen' ? 'Citizen view' : state.role === 'Ward Officer' ? 'Ward view' : 'City view';
+      const summaryCards = {
+        'Citizen': [
+          {title:'City AQI now', desc:'Connect backend for OpenAQ feed'},
+          {title:'Your ward AQI', desc:'Auto-centers when ward is set'}
+        ],
+        'Ward Officer': [
+          {title:'Ward AQI now', desc:'Real-time when backend live'},
+          {title:'Complaints today', desc:'Filtered to your ward'}
+        ],
+        'Admin / MCD': [
+          {title:'Citywide AQI avg', desc:'Backend fetch required'},
+          {title:'Worst ward', desc:'Based on current AQI'},
+          {title:'Open complaints', desc:'Citywide count'}
+        ]
+      }[state.role];
+
+      return `
+        <section class="pt-28 pb-12">
+          <div class="max-w-7xl mx-auto px-4 space-y-6">
+            <div class="flex flex-col gap-2">
+              <div class="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <p class="text-xs text-emerald-200 uppercase">${roleLabel}</p>
+                  <h2 class="text-3xl font-bold text-white">Live Map</h2>
+                </div>
+                <div class="flex items-center gap-2 text-xs">
+                  ${['Now','24h','7d'].map(t => `<span class="chip bg-white/5 text-slate-200">${t}</span>`).join('')}
+                </div>
+              </div>
+            </div>
+
+            <div class="relative w-full h-[520px] glass border border-white/5 overflow-hidden">
+              <div class="absolute inset-0 bg-slate-900/60 flex items-center justify-center text-slate-400 text-center px-4">Map will render with Leaflet/Mapbox once backend provides live OpenAQ, NASA FIRMS, and complaints overlays. No fake layers are shown.</div>
+              <div class="absolute top-4 left-4 w-64 glass p-4 border border-white/10 space-y-3">
+                <div class="flex gap-2 text-xs">
+                  ${['AQI Heatmap','Stations','Complaints'].map(tab => `<span class="chip bg-white/5 text-slate-200">${tab}</span>`).join('')}
+                </div>
+                <div>
+                  <label class="text-xs text-slate-400">Pollutant</label>
+                  <select class="input-field w-full px-3 py-2 mt-1 text-sm">
+                    <option>AQI (overall)</option><option>PM2.5</option><option>PM10</option><option>NO2</option><option>O3</option>
+                  </select>
+                </div>
+                <p class="text-xs text-slate-400">Time: Now / 24h / 7d (backend-driven)</p>
+              </div>
+              <div class="absolute bottom-4 left-4 glass p-3 border border-white/10 text-xs text-slate-200 w-64">
+                <p class="font-semibold text-white">Legend</p>
+                <div class="mt-2 space-y-1">
+                  ${['Good','Satisfactory','Moderate','Poor','Very Poor','Severe'].map((cat,i)=>{
+                    const colors = ['#43d787','#a3e635','#facc15','#f97316','#f43f5e','#991b1b'];
+                    return `<div class="flex items-center gap-2"><span style="background:${colors[i]};" class="h-3 w-3 rounded-full"></span><span>${cat}</span></div>`;
+                  }).join('')}
+                </div>
+                <p class="mt-2 text-[11px] text-slate-400">Last updated: pending live backend fetch. Source: OpenAQ.</p>
+              </div>
+              <div class="absolute top-4 right-4 grid gap-3 w-72">
+                ${summaryCards.map(card=>`<div class="glass p-3 border border-white/10 text-sm text-slate-200"><p class="text-white font-semibold">${card.title}</p><p class="text-xs text-slate-400">${card.desc}</p></div>`).join('')}
+              </div>
+              <div class="absolute bottom-4 inset-x-1/4 glass hidden md:block p-3 border border-white/10 text-center text-xs text-slate-300">Time slider (24h) appears when backend data is available.</div>
+            </div>
+          </div>
+        </section>
+      `;
+    }
+
+    function citizenPortalContent() {
+      const role = state.role;
+      const isCitizen = role === 'Citizen';
+      const filteredComplaints = state.complaints; // user-local only
+      const statusFilters = ['All','Submitted','Under review','Action taken'];
+      return `
+        <section class="pt-28 pb-12">
+          <div class="max-w-7xl mx-auto px-4 space-y-6">
+            <div class="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <p class="text-xs text-emerald-200 uppercase">${isCitizen ? 'Submit & track' : 'View-only governance intake'}</p>
+                <h2 class="text-3xl font-bold text-white">Citizen Portal</h2>
+                <p class="text-slate-400">${isCitizen ? 'Submit smoke/dust/garbage complaints and track responses.' : role==='Ward Officer' ? 'View complaints in your ward. Submission disabled.' : 'Citywide complaints visibility. Submission disabled.'}</p>
+              </div>
+              <div class="flex items-center gap-2 text-xs">
+                <span class="chip bg-white/5 text-slate-200">Open complaints —</span>
+                <span class="chip bg-white/5 text-slate-200">Avg response —</span>
+                <span class="chip bg-white/5 text-slate-200">Last update —</span>
+              </div>
+            </div>
+
+            ${isCitizen ? `
+              <div class="grid lg:grid-cols-2 gap-4">
+                <div class="glass p-4 border border-white/10">
+                  <p class="text-white font-semibold mb-3">Submit complaint</p>
+                  <div class="space-y-3">
+                    <div>
+                      <label class="text-sm text-slate-300">Category</label>
+                      <select id="compCategory" class="input-field w-full px-3 py-3 mt-1">
+                        <option>Smoke</option><option>Dust</option><option>Garbage</option><option>Industrial</option><option>Other</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label class="text-sm text-slate-300">Ward</label>
+                      <input id="compWard" class="input-field w-full px-3 py-3 mt-1" placeholder="Ward name/number" />
+                    </div>
+                    <div>
+                      <label class="text-sm text-slate-300">Address / landmark</label>
+                      <input id="compAddress" class="input-field w-full px-3 py-3 mt-1" placeholder="Location" />
+                    </div>
+                    <div>
+                      <label class="text-sm text-slate-300">Description</label>
+                      <textarea id="compDesc" class="input-field w-full px-3 py-3 mt-1" rows="3" placeholder="Describe the issue"></textarea>
+                    </div>
+                    <div>
+                      <label class="text-sm text-slate-300">Photo (optional)</label>
+                      <input id="compPhoto" type="file" class="text-sm text-slate-400" />
+                    </div>
+                    <p class="text-xs text-slate-400">Updates are shared via this portal; personal data is protected.</p>
+                    <button id="submitComplaint" class="gradient-btn w-full px-4 py-3 rounded-xl">Submit complaint</button>
+                  </div>
+                </div>
+                <div class="glass p-4 border border-white/10">
+                  <div class="flex items-center justify-between mb-3">
+                    <p class="text-white font-semibold">Your complaints</p>
+                    <div class="flex items-center gap-2 text-xs">
+                      ${statusFilters.map(st => `<span class="chip bg-white/5 text-slate-200">${st}</span>`).join('')}
+                    </div>
+                  </div>
+                  <div class="space-y-3 max-h-[420px] overflow-y-auto scroll-area">
+                    ${filteredComplaints.length ? filteredComplaints.map(c => `
+                      <div class="glass p-3 border border-white/5">
+                        <div class="flex items-center justify-between text-xs text-slate-400">
+                          <span>${new Date(c.createdAt).toLocaleString()}</span>
+                          <span class="badge-pill bg-white/5 border border-white/10 text-emerald-200">${c.status}</span>
+                        </div>
+                        <p class="text-white font-semibold mt-1">${c.category} — ${c.ward || 'Ward'}</p>
+                        <p class="text-sm text-slate-300">${c.description || ''}</p>
+                        <p class="text-xs text-slate-500">${c.address || ''}</p>
+                        <button class="text-xs text-emerald-200 underline mt-2">View details</button>
+                      </div>
+                    `).join('') : '<p class="text-slate-400 text-sm">No complaints yet. Submit your first report.</p>'}
+                  </div>
+                </div>
+              </div>
+            ` : `
+              <div class="glass p-4 border border-white/10">
+                <div class="flex flex-wrap items-center justify-between gap-3 mb-3">
+                  <div class="flex items-center gap-2 text-xs">${role==='Admin / MCD' ? '<input class="input-field px-3 py-2" placeholder="Ward" />' : '<span class="badge-pill bg-white/5 border border-white/10 text-slate-200">Your ward</span>'}<input class="input-field px-3 py-2" placeholder="Search" /></div>
+                  <div class="flex items-center gap-2 text-xs">${statusFilters.map(st => `<span class="chip bg-white/5 text-slate-200">${st}</span>`).join('')}</div>
+                </div>
+                <p class="text-slate-400 text-sm">Complaints will appear here when backend is connected. No mock data shown.</p>
+              </div>
+            `}
+          </div>
+        </section>
+      `;
+    }
+
+    function governanceContent() {
+      return `
+        <section class="pt-28 pb-12">
+          <div class="max-w-7xl mx-auto px-4 space-y-6">
+            <div class="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <p class="text-xs text-emerald-200 uppercase">${state.role==='Ward Officer'?'Ward performance':'City KPIs'}</p>
+                <h2 class="text-3xl font-bold text-white">Governance</h2>
+                <p class="text-slate-400">Response, SLA, and AQI governance insights—live once backend is attached.</p>
+              </div>
+              <div class="flex items-center gap-2 text-xs">
+                <span class="chip bg-white/5 text-slate-200">Average AQI —</span>
+                <span class="chip bg-white/5 text-slate-200">Open complaints —</span>
+                <span class="chip bg-white/5 text-slate-200">SLA % —</span>
+              </div>
+            </div>
+            <div class="grid sm:grid-cols-2 lg:grid-cols-5 gap-3">
+              ${['Total reports','Resolved','Pending','Avg response time','Worst ward'].map(label => `
+                <div class="glass p-4 border border-white/10">
+                  <p class="text-xs text-slate-400">${label}</p>
+                  <p class="text-2xl text-white font-semibold">—</p>
+                  <p class="text-[11px] text-slate-500">Live data populates from backend only.</p>
+                </div>
+              `).join('')}
+            </div>
+            <div class="grid lg:grid-cols-2 gap-4">
+              <div class="glass p-4 border border-white/10">
+                <p class="text-white font-semibold">Response radar (ward-level)</p>
+                <div class="h-64 flex items-center justify-center text-slate-500">Chart renders when data available.</div>
+              </div>
+              <div class="glass p-4 border border-white/10">
+                <p class="text-white font-semibold">Ward rankings</p>
+                <div class="grid sm:grid-cols-2 gap-3 mt-3 text-sm text-slate-200">
+                  <div class="glass p-3 border border-white/5">Best performing wards — live feed required</div>
+                  <div class="glass p-3 border border-white/5">Needs attention — live feed required</div>
+                </div>
+              </div>
+            </div>
+            <div class="grid lg:grid-cols-3 gap-4">
+              <div class="lg:col-span-2 glass p-4 border border-white/10">
+                <p class="text-white font-semibold">AQI vs complaints trend</p>
+                <div class="h-64 flex items-center justify-center text-slate-500">Trend chart available with backend data.</div>
+              </div>
+              <div class="glass p-4 border border-white/10">
+                <p class="text-white font-semibold">Governance score</p>
+                <div class="h-64 flex flex-col items-center justify-center text-slate-500">Gauge appears with live metrics.</div>
+              </div>
+            </div>
+            <div class="glass p-4 border border-white/10">
+              <p class="text-white font-semibold mb-2">Compliance & SLA</p>
+              <div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-3 text-sm text-slate-200">
+                ${['AQI reporting cadence','Complaint response SLA','Action issuance review','Human-in-loop checks','Evidence capture','Policy adherence'].map(item => `
+                  <div class="glass p-3 border border-white/5 flex items-center justify-between">
+                    <span>${item}</span><span class="badge-pill bg-white/5 border border-white/10 text-slate-300">On track</span>
+                  </div>
+                `).join('')}
+              </div>
+            </div>
+          </div>
+        </section>
+      `;
+    }
+
+    function aiContent() {
+      const role = state.role;
+      return `
+        <section class="pt-28 pb-12">
+          <div class="max-w-7xl mx-auto px-4 space-y-6">
+            <div class="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <p class="text-xs text-emerald-200 uppercase">Explainable AI • ${role}</p>
+                <h2 class="text-3xl font-bold text-white">AI Intelligence</h2>
+                <p class="text-slate-400">Read-only for citizens; governance and admin can explore full insights.</p>
+              </div>
+              <div class="flex items-center gap-2 text-xs">
+                <span class="badge-pill bg-emerald-500/20 border border-emerald-300/40 text-emerald-100">Model status: Healthy</span>
+                <span class="text-slate-400">Last updated: awaiting backend</span>
+              </div>
+            </div>
+
+            <div class="grid sm:grid-cols-2 lg:grid-cols-4 gap-3">
+              ${['Risk hotspots today','Complaint clusters','Forecast confidence (72h)','Data coverage %'].map(item => `
+                <div class="glass p-3 border border-white/10 text-sm text-slate-200">
+                  <p class="text-white font-semibold">${item}</p>
+                  <p class="text-xs text-slate-400">Live insight populates via backend only.</p>
+                </div>
+              `).join('')}
+            </div>
+
+            <div class="grid lg:grid-cols-2 gap-4">
+              <div class="glass p-4 border border-white/10">
+                <p class="text-white font-semibold">Explainable insights</p>
+                <div class="space-y-2 text-sm text-slate-200 mt-3">
+                  <div class="flex items-center gap-2"><span class="badge-pill bg-emerald-500/20 border border-emerald-300/30 text-emerald-100">Risk</span><span>Area selection (city/ward) once data loads.</span></div>
+                  <p class="text-slate-400 text-xs">Top contributing factors will show with positive/negative bars.</p>
+                  <div class="space-y-1 mt-2">
+                    ${['Traffic density','Parali smoke','Construction','Industrial','Meteorology'].map(f => `<div class="flex items-center gap-2 text-xs text-slate-300"><span class="h-2 w-24 bg-white/5 rounded-full"></span>${f}</div>`).join('')}
+                  </div>
+                </div>
+              </div>
+              <div class="glass p-4 border border-white/10">
+                <p class="text-white font-semibold">Health risk intelligence</p>
+                <div class="grid gap-2 text-sm text-slate-200 mt-2">
+                  ${['Sensitive groups','General population','Outdoor workers/schoolchildren'].map(t=>`<div class="glass p-3 border border-white/5">${t}: Live advisory via backend</div>`).join('')}
+                </div>
+              </div>
+            </div>
+
+            <div class="grid lg:grid-cols-2 gap-4">
+              <div class="glass p-4 border border-white/10">
+                <p class="text-white font-semibold">72-hour AQI forecast</p>
+                <div class="h-56 flex items-center justify-center text-slate-500">Forecast chart appears with backend-connected model.</div>
+              </div>
+              <div class="glass p-4 border border-white/10">
+                <p class="text-white font-semibold">Source attribution</p>
+                <div class="h-56 flex items-center justify-center text-slate-500">Attribution pie chart loads from backend.</div>
+              </div>
+            </div>
+
+            <div class="grid lg:grid-cols-3 gap-4">
+              <div class="glass p-4 border border-white/10 lg:col-span-2">
+                <p class="text-white font-semibold">Parali smoke trajectory overlay</p>
+                <div class="h-64 flex items-center justify-center text-slate-500">NASA FIRMS data overlays on map when backend is available.</div>
+              </div>
+              <div class="glass p-4 border border-white/10">
+                <p class="text-white font-semibold">Sensor intelligence</p>
+                <p class="text-xs text-slate-400">Most impacted/offline sensors appear from OpenAQ feed.</p>
+              </div>
+            </div>
+
+            <div class="glass p-4 border border-white/10">
+              <p class="text-white font-semibold">Ward AQI from GIS logic</p>
+              <p class="text-sm text-slate-300">Sensors → Geospatial join → Ward rollup → Validation → Display. Transparent, auditable calculations.</p>
+            </div>
+
+            <div class="glass p-4 border border-white/10">
+              <p class="text-white font-semibold">Model transparency</p>
+              <p class="text-sm text-slate-300">Model: AirSure-XAI v1. Inputs: OpenAQ AQI, NASA FIRMS fire detections, WeatherAPI meteorology, complaints metadata. Outputs: risk levels, explainability. Human-in-loop; no auto enforcement.</p>
+              ${state.role==='Admin / MCD' ? `
+                <div class="mt-3">
+                  <p class="text-white font-semibold text-sm">Admin audit</p>
+                  <div class="space-y-2 text-sm text-slate-200">
+                    <button class="glass px-4 py-2 border border-white/5 rounded-lg">Export summary</button>
+                    <button class="glass px-4 py-2 border border-white/5 rounded-lg">Export explanations</button>
+                    <details class="glass p-3 border border-white/5 rounded-lg text-slate-200"><summary class="cursor-pointer text-white">FAQ</summary><p class="text-xs text-slate-400 mt-2">Which data sources contributed most today? — Shown after backend aggregation.</p></details>
+                  </div>
+                </div>
+              `:''}
+            </div>
+          </div>
+        </section>
+      `;
+    }
+
+    function actionsContent() {
+      return `
+        <section class="pt-28 pb-12">
+          <div class="max-w-7xl mx-auto px-4 space-y-6">
+            <div class="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <p class="text-xs text-emerald-200 uppercase">Admin only</p>
+                <h2 class="text-3xl font-bold text-white">Actions & Notices</h2>
+                <p class="text-slate-400">Evidence-backed enforcement. Live queue appears with backend data.</p>
+              </div>
+              <div class="flex items-center gap-2 text-xs">
+                ${['Open notices —','Pending approvals —','Resolved this month —'].map(t=>`<span class="chip bg-white/5 text-slate-200">${t}</span>`).join('')}
+              </div>
+            </div>
+            <div class="grid sm:grid-cols-4 gap-3">
+              ${['Total actions (30d)','% with AI + human confirmation','Common reasons','Avg time complaint → notice'].map(t=>`<div class="glass p-3 border border-white/10 text-sm text-slate-200"><p class="text-white font-semibold">${t}</p><p class="text-xs text-slate-400">Populated from backend only.</p></div>`).join('')}
+            </div>
+            <div class="glass p-4 border border-white/10">
+              <div class="flex flex-wrap items-center justify-between gap-3 mb-3 text-xs">
+                <div class="flex items-center gap-2">${['All','Draft','Pending issue','Issued','Resolved'].map(s=>`<span class="chip bg-white/5 text-slate-200">${s}</span>`).join('')}</div>
+                <div class="flex items-center gap-2"><input class="input-field px-3 py-2" placeholder="Ward" /><select class="input-field px-3 py-2"><option>Type</option><option>Notice</option><option>Penalty</option><option>Warning</option></select><input class="input-field px-3 py-2" placeholder="Search" /></div>
+              </div>
+              <p class="text-slate-400 text-sm">Open actions will list here once backend data is connected. No mock enforcement shown.</p>
+            </div>
+            <div class="grid lg:grid-cols-2 gap-4">
+              <div class="glass p-4 border border-white/10">
+                <p class="text-white font-semibold">Review modal</p>
+                <p class="text-sm text-slate-300">Appears when selecting an action. Sections: Evidence, Notice details, Safeguards. Buttons: Issue notice, Save as draft, Mark as resolved.</p>
+              </div>
+              <div class="glass p-4 border border-white/10">
+                <p class="text-white font-semibold">Templates & safeguards</p>
+                <ul class="list-disc list-inside text-slate-300 text-sm">
+                  <li>Human review required. No auto-penalties.</li>
+                  <li>Evidence from complaints + FIRMS + AQI.</li>
+                  <li>Policy link available in About page.</li>
+                </ul>
+              </div>
+            </div>
+          </div>
+        </section>
+      `;
+    }
+
+    function policyContent() {
+      return `
+        <section class="pt-28 pb-12">
+          <div class="max-w-7xl mx-auto px-4 space-y-6">
+            <div class="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <p class="text-xs text-emerald-200 uppercase">Admin only</p>
+                <h2 class="text-3xl font-bold text-white">Policy Simulator</h2>
+                <p class="text-slate-400">Test scenarios with real data once backend models connect. No automatic enforcement.</p>
+              </div>
+              <div class="flex items-center gap-2 text-xs">
+                <select class="input-field px-3 py-2"><option>Saved scenario</option></select>
+                <span class="badge-pill bg-white/5 border border-white/10 text-slate-200">Baseline</span>
+                <span class="badge-pill bg-amber-500/20 border border-amber-300/30 text-amber-100">Experimental tool</span>
+              </div>
+            </div>
+
+            <div class="grid lg:grid-cols-2 gap-4">
+              <div class="glass p-4 border border-white/10 space-y-3">
+                <p class="text-white font-semibold">Scenario controls</p>
+                <select class="input-field w-full px-3 py-3"><option>Citywide</option><option>District</option><option>Ward</option></select>
+                ${['Traffic restrictions','Construction controls','Waste burning enforcement','Industrial emission caps'].map(l=>`
+                  <div>
+                    <div class="flex items-center justify-between text-sm text-slate-200"><span>${l}</span><span class="badge-pill bg-white/5 border border-white/10 text-slate-300">Toggle</span></div>
+                    <input type="range" min="0" max="100" class="w-full" />
+                  </div>
+                `).join('')}
+                <div class="flex items-center gap-2 text-xs">${['7 days','30 days','90 days'].map(t=>`<span class="chip bg-white/5 text-slate-200">${t}</span>`).join('')}</div>
+                <div class="flex items-center gap-2">
+                  <button class="gradient-btn px-4 py-3 rounded-xl flex-1">Run scenario</button>
+                  <button class="px-4 py-3 rounded-xl border border-white/10 text-slate-200 flex-1">Reset to baseline</button>
+                </div>
+                <p class="text-xs text-slate-400">Estimates only. Connect backend models for real outputs.</p>
+              </div>
+              <div class="glass p-4 border border-white/10 space-y-3">
+                <p class="text-white font-semibold">Predicted impact</p>
+                <div class="grid sm:grid-cols-2 gap-3 text-sm text-slate-200">
+                  ${['Predicted AQI change','Predicted complaint change','Enforcement load','Coverage'].map(i=>`<div class="glass p-3 border border-white/5">${i}: —</div>`).join('')}
+                </div>
+                <div class="h-48 flex items-center justify-center text-slate-500">Impact over time chart appears with backend.</div>
+                <div class="h-40 flex items-center justify-center text-slate-500">Spatial impact mini map</div>
+                <div class="h-40 flex items-center justify-center text-slate-500">Intervention attribution chart</div>
+                <div class="glass p-3 border border-white/5 text-sm text-slate-200">Transparency: Inputs, assumptions, limitations documented. Read full methodology.</div>
+                <div class="glass p-3 border border-white/5 text-sm text-slate-200">Scenario history & save — connects to backend storage.</div>
+              </div>
+            </div>
+          </div>
+        </section>
+      `;
+    }
+
+    function aboutContent() {
+      return `
+        <section class="pt-28 pb-12">
+          <div class="max-w-5xl mx-auto px-4 space-y-8">
+            <div class="glass p-6 border border-white/10">
+              <p class="text-xs text-emerald-200 uppercase">Public data • Explainable AI • Govt collaboration</p>
+              <h2 class="text-3xl font-bold text-white">About this platform</h2>
+              <p class="text-slate-300">AirSure is a civic-tech platform for Delhi to monitor air quality, assess parali (stubble burning) impacts, and engage citizens with governance. It uses only authentic public APIs—no simulations.</p>
+            </div>
+            <div class="glass p-6 border border-white/10 space-y-3">
+              <h3 class="text-white text-xl font-semibold">Mission & What This Is</h3>
+              <p class="text-slate-300">Transparent, legally defensible air quality intelligence for citizens, ward officers, and MCD leadership.</p>
+              <ul class="list-disc list-inside text-slate-300 text-sm">
+                <li>Shows AQI as reported by OpenAQ/CPCB.</li>
+                <li>Uses NASA FIRMS for parali fire detections.</li>
+                <li>Uses WeatherAPI for wind and met inputs.</li>
+                <li>Does not simulate or fabricate values.</li>
+              </ul>
+            </div>
+            <div class="glass p-6 border border-white/10 space-y-3">
+              <h3 class="text-white text-xl font-semibold">Data Sources & Pipeline</h3>
+              <p class="text-slate-300">Sensors/Satellite → Validation → AI Models → Website. Update frequency is driven by source APIs.</p>
+              <p class="text-sm text-slate-400">Providers: OpenAQ, NASA FIRMS (MODIS + VIIRS), WeatherAPI. Privacy: personal data is limited to auth; complaint text is handled per policy.</p>
+            </div>
+            <div class="glass p-6 border border-white/10 space-y-3">
+              <h3 class="text-white text-xl font-semibold">AI & Models</h3>
+              <p class="text-slate-300">Explainable AI with human oversight. Outputs: risk levels, attribution, forecasts. No auto enforcement.</p>
+            </div>
+            <div class="grid md:grid-cols-2 gap-4">
+              <div class="glass p-4 border border-white/10">
+                <h4 class="text-white font-semibold">Governance & Safeguards</h4>
+                <ul class="list-disc list-inside text-slate-300 text-sm">
+                  <li>Human-in-loop for actions</li>
+                  <li>Audit trails for AI outputs</li>
+                  <li>No personal data in public views</li>
+                </ul>
+              </div>
+              <div class="glass p-4 border border-white/10">
+                <h4 class="text-white font-semibold">Legal</h4>
+                <p class="text-sm text-slate-300">Decision support only. Policies adhere to MCD guidance.</p>
+                <div class="text-sm text-emerald-200 underline">
+                  <a data-route="privacy">Privacy Policy</a> • <a data-route="terms">Terms of Use</a>
+                </div>
+              </div>
+            </div>
+            <div class="glass p-6 border border-white/10">
+              <h4 class="text-white font-semibold">FAQ</h4>
+              <div class="space-y-2 text-sm text-slate-200">
+                ${['Where does AQI come from? (OpenAQ/CPCB)','How is parali detected? (NASA FIRMS)','How is wind considered? (WeatherAPI)','Is any data simulated? (No)','Can citizens see governance actions? (Only transparency summaries)','How are roles enforced? (Client auth + backend)'].map(q=>`<details class="glass p-3 border border-white/5 rounded-lg"><summary class="cursor-pointer text-white">${q.split('(')[0]}</summary><p class="text-xs text-slate-400 mt-2">${q.split('(')[1] ? q.split('(')[1].replace(')','') : ''}</p></details>`).join('')}
+              </div>
+            </div>
+            <div class="grid md:grid-cols-2 gap-4">
+              <div class="glass p-4 border border-white/10">
+                <h4 class="text-white font-semibold">Contact</h4>
+                <p class="text-sm text-slate-300">support@airsure.delhi.gov</p>
+              </div>
+              <div class="glass p-4 border border-white/10">
+                <h4 class="text-white font-semibold">Credits</h4>
+                <p class="text-sm text-slate-300">Built for Delhi civic-tech with gratitude to public data providers.</p>
+              </div>
+            </div>
+          </div>
+        </section>
+      `;
+    }
+
+    function privacyContent() {
+      return `
+        <section class="pt-28 pb-12">
+          <div class="max-w-4xl mx-auto px-4 space-y-4">
+            <h2 class="text-3xl font-bold text-white">Privacy Policy</h2>
+            <p class="text-slate-300">AirSure uses auth data to provide role-based access. Complaint submissions are stored securely; no personal data is shared publicly. External data is fetched server-side from OpenAQ, NASA FIRMS, and WeatherAPI. No third-party trackers.</p>
+          </div>
+        </section>
+      `;
+    }
+
+    function termsContent() {
+      return `
+        <section class="pt-28 pb-12">
+          <div class="max-w-4xl mx-auto px-4 space-y-4">
+            <h2 class="text-3xl font-bold text-white">Terms of Use</h2>
+            <p class="text-slate-300">AirSure provides decision-support only. AQI, fire detections, and weather data are displayed as received from official APIs. Users must ensure policy compliance for any enforcement. No warranties; use is subject to government guidelines.</p>
+          </div>
+        </section>
+      `;
+    }
+
+    function renderPage() {
+      if (!state.authenticated) {
+        if (state.route==='privacy') return privacyContent();
+        if (state.route==='terms') return termsContent();
+        return renderAuthPage();
+      }
+      if (state.route==='home') return homeContent();
+      if (state.route==='live-map') return liveMapContent();
+      if (state.route==='citizen-portal') return citizenPortalContent();
+      if (state.route==='governance') return governanceContent();
+      if (state.route==='ai-intelligence') return aiContent();
+      if (state.route==='actions') return actionsContent();
+      if (state.route==='policy-simulator') return policyContent();
+      if (state.route==='about') return aboutContent();
+      if (state.route==='privacy') return privacyContent();
+      if (state.route==='terms') return termsContent();
+      return homeContent();
+    }
+
+    function renderApp() {
+      const app = document.getElementById('app');
+      const content = renderPage();
+      app.innerHTML = `
+        ${renderNavbar()}
+        <div>${content}</div>
+        ${renderFooter()}
+      `;
+      attachEvents();
+    }
+
+    function attachEvents() {
+      // Navbar navigation
+      document.querySelectorAll('[data-route]').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const route = btn.getAttribute('data-route');
+          if (state.authenticated) {
+            if (!navVisible(route) && !['privacy','terms','about'].includes(route)) return;
+          }
+          setRoute(route);
+        });
+      });
+
+      // User menu
+      const userBtn = document.getElementById('userMenuBtn');
+      const userMenu = document.getElementById('userMenu');
+      if (userBtn && userMenu) {
+        userBtn.onclick = () => userMenu.classList.toggle('hidden');
+        document.addEventListener('click', (e) => {
+          if (!userMenu.contains(e.target) && !userBtn.contains(e.target)) userMenu.classList.add('hidden');
+        });
+      }
+      document.querySelectorAll('[data-logout]').forEach(btn => btn.onclick = logout);
+
+      const hamburger = document.getElementById('hamburger');
+      if (hamburger) hamburger.onclick = () => { state.mobileMenu = true; renderApp(); };
+      const closeMobile = document.getElementById('closeMobile');
+      if (closeMobile) closeMobile.onclick = () => { state.mobileMenu = false; renderApp(); };
+
+      document.querySelectorAll('[data-profile]').forEach(btn => btn.onclick = () => alert('Profile page placeholder.'));
+
+      // Auth tabs
+      document.querySelectorAll('[data-auth-tab]').forEach(btn => {
+        btn.addEventListener('click', () => { state.authTab = btn.getAttribute('data-auth-tab'); state.authErrors = {}; renderApp(); });
+      });
+
+      // Toggle password visibility
+      document.querySelectorAll('[data-toggle-pass]').forEach(btn => {
+        btn.onclick = () => {
+          const id = btn.getAttribute('data-toggle-pass');
+          const input = document.getElementById(id);
+          if (!input) return;
+          input.type = input.type === 'password' ? 'text' : 'password';
+          btn.textContent = input.type === 'password' ? 'Show' : 'Hide';
+        };
+      });
+
+      // Auth submit
+      const loginSubmit = document.getElementById('loginSubmit');
+      if (loginSubmit) {
+        loginSubmit.onclick = () => {
+          handleLogin({
+            email: document.getElementById('loginEmail').value.trim(),
+            password: document.getElementById('loginPassword').value.trim(),
+            role: document.getElementById('loginRole').value
+          });
+        };
+      }
+      const signupSubmit = document.getElementById('signupSubmit');
+      if (signupSubmit) {
+        signupSubmit.onclick = () => {
+          handleSignup({
+            name: document.getElementById('signupName').value.trim(),
+            email: document.getElementById('signupEmail').value.trim(),
+            password: document.getElementById('signupPassword').value.trim(),
+            role: document.getElementById('signupRole').value
+          });
+        };
+      }
+
+      // Forgot password
+      const forgotBtn = document.getElementById('forgotBtn');
+      if (forgotBtn) forgotBtn.onclick = () => { state.showForgot = true; renderApp(); };
+      const closeForgot = document.getElementById('closeForgot');
+      const backToLogin = document.getElementById('backToLogin');
+      if (closeForgot) closeForgot.onclick = () => { state.showForgot = false; renderApp(); };
+      if (backToLogin) backToLogin.onclick = () => { state.showForgot = false; renderApp(); };
+
+      // Complaint submission (citizen)
+      const submitComplaint = document.getElementById('submitComplaint');
+      if (submitComplaint) {
+        submitComplaint.onclick = () => {
+          const payload = {
+            category: document.getElementById('compCategory').value,
+            ward: document.getElementById('compWard').value.trim(),
+            address: document.getElementById('compAddress').value.trim(),
+            description: document.getElementById('compDesc').value.trim()
+          };
+          if (!payload.description || !payload.address) { alert('Please fill description and address.'); return; }
+          addComplaint(payload);
+          alert('Complaint submitted locally. Connect backend to sync.');
+          renderApp();
+        };
+      }
+
+      // Sticky navbar opacity
+      const navbar = document.getElementById('navbar');
+      if (navbar) {
+        window.addEventListener('scroll', () => {
+          const scrolled = window.scrollY > 30;
+          navbar.style.backgroundColor = scrolled ? 'rgba(10,20,36,0.85)' : 'rgba(15,29,56,0.7)';
+        });
+      }
+    }
+
+loadAuth();
+    renderApp();
+  </script>
+
+  <!-- Loads the backend-integration code that fetches /api/... and updates UI -->
+  <script src="script.js"></script>
+</body>
+</html>

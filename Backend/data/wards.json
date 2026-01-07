@@ -1,0 +1,7 @@
+[
+  {"code":"NDMC-01","name":"Parliament Street","district":"New Delhi","centroid":{"lat":28.6143,"lon":77.2089}},
+  {"code":"NDMC-32","name":"Punjabi Bagh","district":"West Delhi","centroid":{"lat":28.6692,"lon":77.1209}},
+  {"code":"NDMC-43","name":"Rohini","district":"North West Delhi","centroid":{"lat":28.7360,"lon":77.1136}},
+  {"code":"SDMC-45","name":"Siri Fort","district":"South Delhi","centroid":{"lat":28.5535,"lon":77.2197}},
+  {"code":"SDMC-56","name":"Okhla Phase-2","district":"South East Delhi","centroid":{"lat":28.5355,"lon":77.2842}}
+]

@@ -1,0 +1,62 @@
+[
+  {
+    "id": "delhi-parliament-street",
+    "name": "Parliament Street",
+    "provider": "CPCB",
+    "lat": 28.6143,
+    "lon": 77.2089,
+    "ward": "NDMC-01",
+    "city": "Delhi",
+    "parameters": ["pm25", "pm10", "no2", "o3"],
+    "source": "openaq",
+    "locationId": 236
+  },
+  {
+    "id": "delhi-siri-fort",
+    "name": "Siri Fort",
+    "provider": "DPCC",
+    "lat": 28.5535,
+    "lon": 77.2197,
+    "ward": "SDMC-45",
+    "city": "Delhi",
+    "parameters": ["pm25", "pm10", "no2"],
+    "source": "openaq",
+    "locationId": 5586
+  },
+  {
+    "id": "delhi-punjabi-bagh",
+    "name": "Punjabi Bagh",
+    "provider": "DPCC",
+    "lat": 28.6692,
+    "lon": 77.1209,
+    "ward": "NDMC-32",
+    "city": "Delhi",
+    "parameters": ["pm25", "pm10", "no2", "o3"],
+    "source": "openaq",
+    "locationId": 5540
+  },
+  {
+    "id": "delhi-rohini",
+    "name": "Rohini",
+    "provider": "CPCB",
+    "lat": 28.736,
+    "lon": 77.1136,
+    "ward": "NDMC-43",
+    "city": "Delhi",
+    "parameters": ["pm25", "pm10", "no2"],
+    "source": "openaq",
+    "locationId": 10831
+  },
+  {
+    "id": "delhi-okhla-phase-2",
+    "name": "Okhla Phase-2",
+    "provider": "DPCC",
+    "lat": 28.5355,
+    "lon": 77.2842,
+    "ward": "SDMC-56",
+    "city": "Delhi",
+    "parameters": ["pm25", "pm10", "no2"],
+    "source": "openaq",
+    "locationId": 8239
+  }
+]
